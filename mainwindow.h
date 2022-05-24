@@ -151,13 +151,11 @@ protected:
 
     void removeBurnerRegion(QPoint pos, int penWidth);
 
-    void calcFirstHeatingStep();
+    void calcHeatingStep();
 
-    void calcOtherHeatingSteps();
+    void calcHeatingStepParallel(int numberOfThreads);
 
-    void calcOtherHeatingStepsParallel(int numberOfThreads);
-
-    void calcOtherHeatingStepsPartial(int xMin, int xMax);
+    void calcHeatingStepPartial(int xMin, int xMax);
 
 
 private:
@@ -194,8 +192,8 @@ private:
     const double resistivity = 1.68e-5;       // Cu, resistivity in Ohm*mm // again rho in literature
     const double thermalResCoef = 3.86e-3;   // Cu, thermal sensitivity of resistivity, in a.u./deg C // again alpha in literature
 
-    const double xStep = 5.;               // 1 px = 0.26 mm // not sure if it is the same on every monitor
-    const double yStep = 5.;              // 200 pixels simulation area -> 1000mm -> 1m
+    const double xStep = 0.26;               // 1 px = 0.26 mm // not sure if it is the same on every monitor
+    const double yStep = 0.26;              // 200 pixels simulation area -> 1000mm -> 1m
     const double zStep = 5.;             // Burner Z size
 
     int V = 120;                       // Voltage, V // user will be able to change it

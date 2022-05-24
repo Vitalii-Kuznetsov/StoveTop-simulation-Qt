@@ -28,7 +28,7 @@ void MainWindow::errorMessage()
         ui->statusbar->showMessage("Nothing is drawn, please draw something with left mouse.");
     }
     else {
-        ui->statusbar->showMessage("No errors.");
+        ui->statusbar->showMessage("");
     }
 }
 
@@ -44,7 +44,7 @@ DrawArea::DrawArea(QWidget *parent)
     connect(this, SIGNAL(signalDoSimulation()), this, SLOT(doSimulation()));
     connect(this, SIGNAL(signalCreateBurnerMap()), this, SLOT(createBurnerMap()));
     connect(this, SIGNAL(signalCreateTemperatureLayers()), this, SLOT(createTemperatureMapLayers()));
-    connect(this, SIGNAL(signalUpdateAlpha), this, SLOT(updateTimeStep));
+    connect(this, SIGNAL(signalUpdateAlpha()), this, SLOT(updateTimeStep()));
 }
 
 
@@ -152,22 +152,9 @@ void DrawArea::createBurnerMap()
 
 void DrawArea::createTemperatureMapLayers()
 {
-    /*temperatureMapL1.clear();
-    temperatureMapL2.clear();
-    temperatureMapL3.clear();
-    temperatureMapL1.squeeze();
-    temperatureMapL2.squeeze();
-    temperatureMapL3.squeeze();
-
-    for (int i = 0; i < this->width(); ++i){
-        QVector<double> row(this->height(), outsideTemperature);
-        temperatureMapL1.append(row);
-        temperatureMapL2.append(row);
-        temperatureMapL3.append(row);
-    }*/
-
     for (int x = 0; x < temperatureMapSizeX; ++x){
         for (int y = 0; y < temperatureMapSizeY; ++y){
+            temperatureMapL0[x][y] = outsideTemperature;
             temperatureMapL1[x][y] = outsideTemperature;
             temperatureMapL2[x][y] = outsideTemperature;
             temperatureMapL3[x][y] = outsideTemperature;
@@ -200,17 +187,6 @@ void DrawArea::paintTemperatureMap()
     QPainter painter(&image);
     int currentPenWidth = penWidth();
     setPenWidth(1);
-    /*
-    for (int i = 0; i < temperatureMapL2.size(); ++i){
-        for (int j = 0; j < temperatureMapL2[0].size(); ++j){
-            setPenColor(qRgb
-                        (qMin(255., temperatureMapL2[i][j]),
-                         qMin(255. , heaviside(temperatureMapL2[i][j] - 255.)),
-                         qMin(255. , heaviside(temperatureMapL2[i][j] - 510.))));
-            painter.setPen(QPen(myPenColor, myPenWidth));
-            painter.drawPoint(i,j);
-        }
-    }*/
 
     for (int x = 0; x < temperatureMapSizeX; ++x){
         for (int y = 0; y < temperatureMapSizeY; ++y){
@@ -237,7 +213,6 @@ void DrawArea::startSimulation()
     emit signalNoErrors();
     image.fill(qRgb(0,0,0));
     update();
-    calcFirstHeatingStep();
     currentSimulationStep = 0;
     timer->start(timerPeriod);
     simulationRunning = true;
@@ -253,10 +228,9 @@ void DrawArea::doSimulation()
 
     fullTimer.start();
     for (int i = 0; i < static_cast<int>(timerPeriod / timeStep / 1000); ++i){
-        if (numberOfThreads <= 0) calcOtherHeatingSteps();
-        else calcOtherHeatingStepsParallel(numberOfThreads);
+        if (numberOfThreads <= 0) calcHeatingStep();
+        else calcHeatingStepParallel(numberOfThreads);
 
-        /*temperatureMapL2 = temperatureMapL3;*/
         for (int x = 0; x < temperatureMapSizeX; ++x){
             for(int y = 0; y < temperatureMapSizeY; ++y){
                 temperatureMapL2[x][y] = temperatureMapL3[x][y];
@@ -267,7 +241,7 @@ void DrawArea::doSimulation()
     }
     qDebug() << "The whole simulation instance (" << static_cast<int>(timerPeriod / timeStep / 1000) << " steps) took "
              << fullTimer.elapsed() << "milliseconds. " << "Central point: " << temperatureMapL3[100][100]
-             << " Power: " << power << "\n";
+             << " Power: " << power << " Time step: " << timeStep << "Alpha: " << alpha << "\n";
 }
 
 //                                             PROTECTED METHODS
@@ -384,14 +358,13 @@ void DrawArea::addBurnerRegion(QPoint pos, int penWidth){
     int yMin = qMax(0, pos.y() - int(penWidth/2));
     int yMax = qMin(burnerMap[0].size(), pos.y() + int(penWidth/2));
 
-    // Here i and j are reversed, i is y and j is x, normally burnerMap[x][y]
-    for (int i = yMin; i < yMax; ++i ){
-        int offset = qSqrt((penWidth/2)*(penWidth/2) - (i - pos.y())*(i - pos.y()));
+    for (int y = yMin; y < yMax; ++y ){
+        int offset = qSqrt((penWidth/2)*(penWidth/2) - (y - pos.y())*(y - pos.y()));
         int xMin = qMax(0, pos.x() - offset);
         int xMax = qMin(burnerMap.size(), pos.x() + offset);
 
-        for (int j = xMin; j < xMax; ++j){
-            burnerMap[j][i] = true;
+        for (int x = xMin; x < xMax; ++x){
+            burnerMap[x][y] = true;
         }
     }
 }
@@ -402,56 +375,19 @@ void DrawArea::removeBurnerRegion(QPoint pos, int penWidth){
     int yMin = qMax(0, pos.y() - int(penWidth/2));
     int yMax = qMin(burnerMap[0].size(), pos.y() + int(penWidth/2));
 
-    // Here i and j are reversed, i is y and j is x, normally burnerMap[x][y]
-    for (int i = yMin; i < yMax; ++i ){
-        int offset = qSqrt((penWidth/2)*(penWidth/2) - (i - pos.y())*(i - pos.y()));
+    for (int y = yMin; y < yMax; ++y ){
+        int offset = qSqrt((penWidth/2)*(penWidth/2) - (y - pos.y())*(y - pos.y()));
         int xMin = qMax(0, pos.x() - offset);
         int xMax = qMin(burnerMap.size(), pos.x() + offset);
 
-        for (int j = xMin; j < xMax; ++j){
-            burnerMap[j][i] = false;
+        for (int x = xMin; x < xMax; ++x){
+            burnerMap[x][y] = false;
         }
     }
 }
 
-// Only to be used for calculating first step in time, temperatureMap must be just initialised for next steps use DrawArea::calcOtherHeatingSteps
-void DrawArea::calcFirstHeatingStep(){
-    /*
-    for (int i = 1; i < temperatureMapL2.size() - 1; ++i){
-        for (int j = 1; j < temperatureMapL2[0].size() - 1; ++j){
-            temperatureMapL2[i][j] = temperatureMapL1[i][j] + alpha*timeStep * (
-                        (temperatureMapL1[i+1][j] - 2*temperatureMapL1[i][j] + temperatureMapL1[i-1][j])/xStep/xStep +
-                        (temperatureMapL1[i][j+1] - 2*temperatureMapL1[i][j] + temperatureMapL1[i][j-1])/yStep/yStep +
-                        getQ(i,j) );
-        }
-    }*/
-
-    for (int x = 1; x < temperatureMapSizeX - 1; ++x){
-        for (int y = 1; y < temperatureMapSizeY - 1; ++y){
-            temperatureMapL2[x][y] = temperatureMapL1[x][y] + alpha*timeStep * (
-                        (temperatureMapL1[x+1][y] - 2*temperatureMapL1[x][y] + temperatureMapL1[x-1][y])/xStep/xStep +
-                        (temperatureMapL1[x][y+1] - 2*temperatureMapL1[x][y] + temperatureMapL1[x][y-1])/yStep/yStep +
-                        getQ(x,y) );
-        }
-    }
-}
-
-
-void DrawArea::calcOtherHeatingSteps()
+void DrawArea::calcHeatingStep()
 {
-    /*
-    int xSize = temperatureMapL3.size();
-    int ySize = temperatureMapL3[0].size();
-    for (int i = 1; i < xSize - 1; ++i){
-        for (int j = 1; j < ySize - 1; ++j){
-            temperatureMapL3[i][j] = temperatureMapL2[i][j] + alpha*timeStep * (
-                        (temperatureMapL2[i+1][j] - 2*temperatureMapL2[i][j] + temperatureMapL2[i-1][j])/xStep/xStep +
-                        (temperatureMapL2[i][j+1] - 2*temperatureMapL2[i][j] + temperatureMapL2[i][j-1])/yStep/yStep +
-                        (outsideTemperature - temperatureMapL2[i][j])/zStep +
-                        getQ(i,j) );
-        }
-    }*/
-
     for (int x = 1; x < temperatureMapSizeX - 1; ++x){
         for (int y = 1; y < temperatureMapSizeY - 1; ++y){
             temperatureMapL3[x][y] = temperatureMapL2[x][y] + alpha*timeStep * (
@@ -463,25 +399,33 @@ void DrawArea::calcOtherHeatingSteps()
     }
 }
 
-void DrawArea::calcOtherHeatingStepsParallel(int numberOfThreads)
+void DrawArea::calcHeatingStepParallel(int numberOfThreads)
 {
     int batch = (temperatureMapSizeX-2) / numberOfThreads;
 
     for (int i = 0; i < numberOfThreads; ++i){
-        QFuture<void> future = QtConcurrent::run(&DrawArea::calcOtherHeatingStepsPartial, this, i*batch, (i+1)*batch);
+        QFuture<void> future = QtConcurrent::run(&DrawArea::calcHeatingStepPartial, this, i*batch+1, (i+1)*batch+1);
     }
 
 }
 
-void DrawArea::calcOtherHeatingStepsPartial(int xMin, int xMax)
+void DrawArea::calcHeatingStepPartial(int xMin, int xMax)
 {
     for (int x = xMin; x < xMax; ++x){
-        for (int y = 1; y < temperatureMapSizeY; ++y){
+        for (int y = 1; y < temperatureMapSizeY-1; ++y){
+            if (burnerMap[x][y]){
+                temperatureMapL0[x][y] += timeStep * getQ(x,y);
+            }
+        }
+    }
+
+    for (int x = xMin; x < xMax; ++x){
+        for (int y = 1; y < temperatureMapSizeY-1; ++y){
             temperatureMapL3[x][y] = temperatureMapL2[x][y] + alpha*timeStep * (
-                        (temperatureMapL2[x+1][y] - 2*temperatureMapL2[x][y] + temperatureMapL2[x-1][y])/xStep/xStep +
-                        (temperatureMapL2[x][y+1] - 2*temperatureMapL2[x][y] + temperatureMapL2[x][y-1])/yStep/yStep +
-                        (outsideTemperature - temperatureMapL2[x][y])/zStep +
-                        getQ(x,y) );
+                        (temperatureMapL2[x+1][y] - 2*temperatureMapL2[x][y] + temperatureMapL2[x-1][y])/xStep/xStep +   // x
+                        (temperatureMapL2[x][y+1] - 2*temperatureMapL2[x][y] + temperatureMapL2[x][y-1])/yStep/yStep +   // y
+                        (outsideTemperature - 2*temperatureMapL2[x][y] + temperatureMapL0[x][y])/zStep/zStep );          // z
+
         }
     }
 }
