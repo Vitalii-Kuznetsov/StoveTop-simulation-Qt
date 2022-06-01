@@ -33,7 +33,7 @@ public:
     ~MainWindow();
 
 public slots:
-    void errorMessage();
+    void errorMessage(int errIndex);
 
 private slots:
     void on_actionNew_triggered();
@@ -46,7 +46,7 @@ private slots:
 
     void on_stopSimulation_released();
 
-    void on_pauseSimulation_released();
+    // void on_pauseSimulation_released();
 
     void on_actionExit_triggered();
 
@@ -63,6 +63,8 @@ private slots:
     void on_topBrick_released();
 
     void on_topGlass_released();
+
+    void on_HeaterOn_toggled(bool checked);
 
 private:
     Ui::MainWindow *ui;
@@ -84,6 +86,8 @@ public:
     void setAlpha(double);
 
     void setVoltage(int);
+
+    void setBurner(bool);
 
     void updatePower();
 
@@ -130,9 +134,9 @@ signals:
 
     void signalDoSimulation();
 
-    void signalUpdateAlpha();
+    void signalAlphaUpdated();
 
-    void signalErrorNothingDrawn();
+    void signalError(int errIndex);
 
     void signalNoErrors();
 
@@ -166,6 +170,7 @@ private:
     bool drawing = false;
     bool clearing = false;
     bool simulationRunning = false;
+    bool burnerOn = false;
     int myPenWidth = 50;
     QColor myPenColor = Qt::black;
     QImage image;
@@ -186,7 +191,7 @@ private:
 
     const int outsideTemperature = 20;
     double alpha = 5.;                            // Thermal diffusivity in mm^2/s // alpha in literature
-    const int timerPeriod = 100;                 // How often to show the current simulation state, each timerPeriod ms //
+    const int timerPeriod = 50;                 // How often to show the current simulation state, each timerPeriod the update will run, in ms //
     const double density = 8.96e-3;             // Cu, density in g/mm^3 // rho in literature
     const double spHeatCap = 0.385;            // Cu, specific heat capacity in J/g/deg C // c in literature
     const double resistivity = 1.68e-5;       // Cu, resistivity in Ohm*mm // again rho in literature
