@@ -6,9 +6,15 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>691</width>
-    <height>507</height>
+    <width>698</width>
+    <height>541</height>
    </rect>
+  </property>
+  <property name="sizePolicy">
+   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+    <horstretch>0</horstretch>
+    <verstretch>0</verstretch>
+   </sizepolicy>
   </property>
   <property name="windowTitle">
    <string>MainWindow</string>
@@ -17,7 +23,7 @@
    <widget class="QWidget" name="centralGrid" native="true">
     <property name="geometry">
      <rect>
-      <x>0</x>
+      <x>-10</x>
       <y>10</y>
       <width>801</width>
       <height>541</height>
@@ -57,10 +63,10 @@
     <widget class="QWidget" name="verticalLayoutWidget_2">
      <property name="geometry">
       <rect>
-       <x>420</x>
-       <y>310</y>
+       <x>410</x>
+       <y>340</y>
        <width>244</width>
-       <height>121</height>
+       <height>91</height>
       </rect>
      </property>
      <layout class="QVBoxLayout" name="layoutRight">
@@ -135,7 +141,7 @@
      <property name="geometry">
       <rect>
        <x>360</x>
-       <y>0</y>
+       <y>10</y>
        <width>20</width>
        <height>451</height>
       </rect>
@@ -150,13 +156,13 @@
       <enum>Qt::Vertical</enum>
      </property>
     </widget>
-    <widget class="QWidget" name="">
+    <widget class="QWidget" name="layoutWidget">
      <property name="geometry">
       <rect>
        <x>20</x>
        <y>20</y>
        <width>318</width>
-       <height>413</height>
+       <height>411</height>
       </rect>
      </property>
      <layout class="QVBoxLayout" name="layoutLeft">
@@ -182,37 +188,32 @@
         <property name="verticalSpacing">
          <number>10</number>
         </property>
-        <item row="1" column="0">
-         <widget class="QSlider" name="PenSize">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="font">
-           <font>
-            <family>Gadugi</family>
-           </font>
-          </property>
-          <property name="minimum">
-           <number>1</number>
-          </property>
-          <property name="orientation">
-           <enum>Qt::Horizontal</enum>
-          </property>
-         </widget>
-        </item>
         <item row="4" column="0" alignment="Qt::AlignHCenter">
          <widget class="QLabel" name="labelThreadsNumber">
           <property name="font">
            <font>
             <family>Gadugi</family>
-            <pointsize>12</pointsize>
+            <pointsize>11</pointsize>
            </font>
           </property>
           <property name="text">
            <string>Number of threads to use (up to 10)</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="0" alignment="Qt::AlignHCenter">
+         <widget class="QLabel" name="labelPowerSupply">
+          <property name="font">
+           <font>
+            <family>Gadugi</family>
+            <pointsize>11</pointsize>
+           </font>
+          </property>
+          <property name="text">
+           <string>Power supply (in kWh) : </string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
           </property>
          </widget>
         </item>
@@ -234,23 +235,41 @@
            <number>10</number>
           </property>
           <property name="value">
-           <number>4</number>
+           <number>1</number>
           </property>
          </widget>
         </item>
-        <item row="2" column="0" alignment="Qt::AlignHCenter">
-         <widget class="QLabel" name="labelTemperature">
+        <item row="3" column="0">
+         <widget class="QDial" name="powerDial">
+          <property name="maximum">
+           <number>100</number>
+          </property>
+          <property name="value">
+           <number>30</number>
+          </property>
+          <property name="sliderPosition">
+           <number>30</number>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QSlider" name="PenSize">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
           <property name="font">
            <font>
             <family>Gadugi</family>
-            <pointsize>12</pointsize>
            </font>
           </property>
-          <property name="text">
-           <string>Heater voltage (up to 300 V)</string>
+          <property name="minimum">
+           <number>1</number>
           </property>
-          <property name="alignment">
-           <set>Qt::AlignCenter</set>
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
           </property>
          </widget>
         </item>
@@ -259,7 +278,7 @@
           <property name="font">
            <font>
             <family>Gadugi</family>
-            <pointsize>12</pointsize>
+            <pointsize>11</pointsize>
            </font>
           </property>
           <property name="text">
@@ -267,28 +286,6 @@
           </property>
           <property name="alignment">
            <set>Qt::AlignBottom|Qt::AlignHCenter</set>
-          </property>
-         </widget>
-        </item>
-        <item row="3" column="0" alignment="Qt::AlignHCenter">
-         <widget class="QLineEdit" name="Voltage">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="font">
-           <font>
-            <family>Gadugi</family>
-            <pointsize>11</pointsize>
-           </font>
-          </property>
-          <property name="text">
-           <string>0</string>
-          </property>
-          <property name="alignment">
-           <set>Qt::AlignCenter</set>
           </property>
          </widget>
         </item>
@@ -310,7 +307,7 @@
           <property name="font">
            <font>
             <family>Gadugi</family>
-            <pointsize>12</pointsize>
+            <pointsize>11</pointsize>
            </font>
           </property>
           <property name="text">
@@ -334,6 +331,12 @@
               <pointsize>11</pointsize>
              </font>
             </property>
+            <property name="autoFillBackground">
+             <bool>false</bool>
+            </property>
+            <property name="styleSheet">
+             <string notr="true">background-color: rgb(170, 255, 127);</string>
+            </property>
             <property name="text">
              <string>Brick</string>
             </property>
@@ -352,6 +355,12 @@
               <family>Gadugi</family>
               <pointsize>11</pointsize>
              </font>
+            </property>
+            <property name="autoFillBackground">
+             <bool>false</bool>
+            </property>
+            <property name="styleSheet">
+             <string notr="true">background-color: rgb(255, 170, 127);</string>
             </property>
             <property name="text">
              <string>Iron</string>
@@ -372,6 +381,9 @@
               <pointsize>11</pointsize>
              </font>
             </property>
+            <property name="styleSheet">
+             <string notr="true">background-color: rgb(255, 170, 0);</string>
+            </property>
             <property name="text">
              <string>Copper</string>
             </property>
@@ -390,6 +402,12 @@
               <family>Gadugi</family>
               <pointsize>11</pointsize>
              </font>
+            </property>
+            <property name="autoFillBackground">
+             <bool>false</bool>
+            </property>
+            <property name="styleSheet">
+             <string notr="true">background-color: rgb(255, 85, 0);</string>
             </property>
             <property name="text">
              <string>Silver</string>
@@ -410,6 +428,12 @@
               <pointsize>11</pointsize>
              </font>
             </property>
+            <property name="autoFillBackground">
+             <bool>false</bool>
+            </property>
+            <property name="styleSheet">
+             <string notr="true">background-color: rgb(85, 255, 0);</string>
+            </property>
             <property name="text">
              <string>Glass</string>
             </property>
@@ -429,12 +453,69 @@
               <pointsize>11</pointsize>
              </font>
             </property>
+            <property name="autoFillBackground">
+             <bool>false</bool>
+            </property>
+            <property name="styleSheet">
+             <string notr="true">background-color: rgb(255, 246, 123);</string>
+            </property>
             <property name="text">
              <string>Quartz</string>
             </property>
            </widget>
           </item>
          </layout>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="layoutSlowFast">
+        <item>
+         <widget class="QLabel" name="labelSlow">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="font">
+           <font>
+            <family>Gadugi</family>
+            <pointsize>10</pointsize>
+           </font>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">color: rgb(255, 0, 0);</string>
+          </property>
+          <property name="text">
+           <string>SLOW -</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="labelFast">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="font">
+           <font>
+            <family>Gadugi</family>
+            <pointsize>10</pointsize>
+           </font>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">color: rgb(0, 170, 0);</string>
+          </property>
+          <property name="text">
+           <string>&gt; FAST calculations</string>
+          </property>
+         </widget>
         </item>
        </layout>
       </item>
@@ -459,6 +540,28 @@
       </item>
      </layout>
     </widget>
+    <widget class="QLabel" name="label">
+     <property name="geometry">
+      <rect>
+       <x>450</x>
+       <y>20</y>
+       <width>171</width>
+       <height>41</height>
+      </rect>
+     </property>
+     <property name="font">
+      <font>
+       <family>Gadugi</family>
+       <pointsize>12</pointsize>
+      </font>
+     </property>
+     <property name="text">
+      <string>Draw something</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
    </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
@@ -466,7 +569,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>691</width>
+     <width>698</width>
      <height>26</height>
     </rect>
    </property>
@@ -479,7 +582,14 @@
    </widget>
    <addaction name="menuMain"/>
   </widget>
-  <widget class="QStatusBar" name="statusbar"/>
+  <widget class="QStatusBar" name="statusbar">
+   <property name="sizePolicy">
+    <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+     <horstretch>0</horstretch>
+     <verstretch>0</verstretch>
+    </sizepolicy>
+   </property>
+  </widget>
   <action name="actionNew">
    <property name="text">
     <string>New</string>

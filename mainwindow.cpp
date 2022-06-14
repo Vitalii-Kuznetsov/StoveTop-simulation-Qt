@@ -8,11 +8,9 @@ MainWindow::MainWindow(QWidget *parent)
     ui->setupUi(this);
     setCentralWidget(ui->centralGrid);
 
-    ui->Voltage->setInputMask(QString("999"));
-    ui->Voltage->setText(QString::number(ui->drawArea->voltage()));
     ui->PenSize->setValue(ui->drawArea->penWidth());
 
-    connect(ui->drawArea, &DrawArea::signalError, this, &MainWindow::errorMessage);
+    connect(ui->drawArea, SIGNAL(signalError()), this, SLOT(errorMessage()));
     connect(ui->drawArea, SIGNAL(signalNoErrors()), this, SLOT(errorMessage()));
 
 }
@@ -36,9 +34,8 @@ void MainWindow::errorMessage(int errIndex)
 DrawArea::DrawArea(QWidget *parent)
     : QWidget(parent){
     timeStep = qMin(static_cast<double>(timerPeriod/1000.), xStep * yStep / 4. / alpha);
-    coef = V*V / (xStep*yStep*zStep * density * spHeatCap);
-
     timer = new QTimer(this);
+
     connect(timer, SIGNAL(timeout()), this, SLOT(paintTemperatureMap()));
     connect(timer, SIGNAL(timeout()), this, SLOT(doSimulation()));
     connect(this, SIGNAL(signalDoSimulation()), this, SLOT(doSimulation()));
@@ -68,8 +65,8 @@ void DrawArea::setAlpha(double newAlpha){
     emit signalAlphaUpdated(); // signal to update time step
 }
 
-void DrawArea::setVoltage(int newVoltage){
-    V = newVoltage;
+void DrawArea::setWatts(int newW){
+    W = newW;
 }
 
 void DrawArea::setBurner(bool status){
@@ -77,8 +74,11 @@ void DrawArea::setBurner(bool status){
 }
 
 void DrawArea::updatePower(){
-    if (R == 0) return;     // here Power is converted into heating of 1 sq. pixel in deg C per second by using coef instead of V*V
-    power = coef/R;         // multiplication by timestep will be done during calcOtherHeatingSteps,
+    if (numberOfBurnerPixels == 0) return;
+    // convert watts/hour into watts/second and then to temperature increase per second
+    // volHeatCapCu indicates how much energy is needed to increase the temperature of
+    // 1 mm^3 of Cu by 1 K, our volume is number of pixels * size of one pixel
+    power = W/3600. / (numberOfBurnerPixels*xStep*yStep*burnerSizeZ * volHeatCapCu);
 }
 
 void DrawArea::setSimulation(){
@@ -86,19 +86,23 @@ void DrawArea::setSimulation(){
     for (int x = 0; x < temperatureMapSizeX; ++x){
         for (int y = 0; y < temperatureMapSizeY; ++y){
             if (burnerMap[x][y]){
-                //R += resistivity * xStep / yStep / zStep;
                 ++numberOfBurnerPixels;
             }
         }
     }
-    R = 1000;/*resistivity / zStep * 1e9 *
-            numberOfBurnerPixels / (temperatureMapSizeX * temperatureMapSizeY);*/
     updatePower();
 }
 
 void DrawArea::stopSimulation(){
     simulationRunning = false;
     timer->stop();
+}
+
+double DrawArea::getDeltaT(int x, int y){
+    if (burnerMap[x][y]) {
+        return power;
+    }
+    return 0;
 }
 
 /*void DrawArea::pauseSimulation(){
@@ -112,12 +116,6 @@ void DrawArea::stopSimulation(){
     }
 }*/// currently not used
 
-double DrawArea::getQ(int x, int y){
-    if (burnerMap[x][y]) {
-        return power;
-    }
-    return 0;
-}
 
 
 
@@ -206,6 +204,7 @@ void DrawArea::paintTemperatureMap(){
             painter.drawPoint(x, y);
         }
     }
+
     // restore user defined pen width
     setPenWidth(currentPenWidth);
     update();
@@ -215,11 +214,11 @@ void DrawArea::paintTemperatureMap(){
 void DrawArea::startSimulation()
 {
     // if nothing is drawn, emit error, do not start simulation
-    if (R <= 0){
+    if (numberOfBurnerPixels == 0){
         emit signalError(1);
         return;
     }
-    emit signalNoErrors();
+    emit signalNoErrors(0);
     image.fill(qRgb(0,0,0));
     update();
     currentSimulationStep = 0;
@@ -236,11 +235,14 @@ void DrawArea::doSimulation()
     if (currentSimulationStep >= maxSimulationSteps) qDebug() << "Maximum simulation step reached.";
     if (!simulationRunning || currentSimulationStep > maxSimulationSteps) return;
 
+    // do not start new simulation if the old one is not complete
+    if (multithreadRunning) return;
+
     QElapsedTimer simulationStepTimer;
     simulationStepTimer.start();
 
     for (int i = 0; i < static_cast<int>(timerPeriod / timeStep / 1000); ++i){
-        if (numberOfThreads <= 0) calcHeatingStep();
+        if (numberOfThreads == 0) calcHeatingStep();
         else calcHeatingStepParallel(numberOfThreads);
 
         for (int x = 0; x < temperatureMapSizeX; ++x){
@@ -253,7 +255,7 @@ void DrawArea::doSimulation()
     }
     qDebug() << "The whole simulation instance (" << static_cast<int>(timerPeriod / timeStep / 1000) << " steps) took "
              << simulationStepTimer.elapsed() << "milliseconds. " << "Central point: " << temperatureMapL3[100][100]
-             << " Power: " << power << " Time step: " << timeStep << "Alpha: " << alpha << "\n";
+             << " Heater centre: " << temperatureMapL0[100][100] << " Time step: " << timeStep << "Alpha: " << alpha << "\n";
 }
 
 /*                                             PROTECTED METHODS                                */
@@ -417,10 +419,13 @@ void DrawArea::calcHeatingStep()
         for (int y = 0; y < temperatureMapSizeY; ++y){
             if (burnerMap[x][y]){
                 if (burnerOn) {
-                    temperatureMapL0[x][y] += timeStep * getQ(x,y); }
+                    temperatureMapL0[x][y] = temperatureMapL0[x][y] + timeStep * (
+                                getDeltaT(x,y) *
+                                std::pow((maxHeaterTemp - temperatureMapL0[x][y])/maxHeaterTemp, 2));
+                }
                 else {
-                    temperatureMapL0[x][y] = qMax(static_cast<double>(outsideTemperature),
-                                                  temperatureMapL0[x][y] - timeStep * getQ(x,y)); }
+                    temperatureMapL0[x][y] = qMax(outsideTemperature,
+                                                  temperatureMapL0[x][y] - timeStep * getDeltaT(x,y)); }
             }
         }
     }
@@ -433,25 +438,35 @@ void DrawArea::calcHeatingStep()
             temperatureMapL3[x][y] = temperatureMapL2[x][y] + alpha*timeStep * (
                         (temperatureMapL2[x+1][y] - 2*temperatureMapL2[x][y] + temperatureMapL2[x-1][y])/xStep/xStep +   // x
                         (temperatureMapL2[x][y+1] - 2*temperatureMapL2[x][y] + temperatureMapL2[x][y-1])/yStep/yStep +   // y
-                        (outsideTemperature - 2*temperatureMapL2[x][y] + temperatureMapL0[x][y])/zStep/zStep );          // z
+                        (qMin(outsideTemperature, temperatureMapL2[x][y]*0.7) - 2*temperatureMapL2[x][y] + temperatureMapL0[x][y])/zStep/zStep );          // z
         }
     }
 }
 
 void DrawArea::calcHeatingStepParallel(int numberOfThreads)
 {
-    // we are not calculating at border points, constant boundary condition works there
+    // we are not calculating at border points, constant boundary conditions work there
 
     int batch = (temperatureMapSizeX-2) / numberOfThreads;
 
+    multithreadRunning = true;
+    QVector<QFuture<void>> results(numberOfThreads);
     for (int i = 0; i < numberOfThreads; ++i){
         QFuture<void> future = QtConcurrent::run(&DrawArea::calcHeatingStepPartial, this, i*batch+1, (i+1)*batch+1);
+        results.push_back(future);
     }
 
+    for (auto result : results){
+        if (!simulationRunning){
+            result.cancel();
+        }
+        result.waitForFinished();
+    }
+    multithreadRunning = false;
 }
 
-void DrawArea::calcHeatingStepPartial(int xMin, int xMax)
-{
+void DrawArea::calcHeatingStepPartial(QPromise<void> &promise, int xMin, int xMax)
+{   
     // we are not calculating at border points, constant boundary condition works there
     // although for burner is would be better to calculate
 
@@ -461,25 +476,37 @@ void DrawArea::calcHeatingStepPartial(int xMin, int xMax)
      * heats up. If burner is on, we heat, if off, we cool untill outside temp */
     for (int x = xMin; x < xMax; ++x){
         for (int y = 1; y < temperatureMapSizeY-1; ++y){
+            // Cancel all calculations if needed
+            promise.suspendIfRequested();
+            if (promise.isCanceled()){
+                qDebug() << "Simulation aborted.";
+                return;
+            }
+
             if (burnerMap[x][y]){
                 if (burnerOn) {
-                    temperatureMapL0[x][y] += timeStep * getQ(x,y); }
+                    // restrict heater from reachin maxHeaterTemp by multiplying getDeltaT by a coef
+                    // ranging from 1 at T = 0, to 0 at T = maxHeatingTemp
+                    temperatureMapL0[x][y] = temperatureMapL0[x][y] + timeStep * (
+                                getDeltaT(x,y) *
+                                std::pow((maxHeaterTemp - temperatureMapL0[x][y])/maxHeaterTemp, 2));
+                }
                 else {
-                    temperatureMapL0[x][y] = qMax(static_cast<double>(outsideTemperature),
-                                                  temperatureMapL0[x][y] - timeStep * getQ(x,y)); }
+                    temperatureMapL0[x][y] = qMax(outsideTemperature,
+                                                  temperatureMapL0[x][y] - timeStep * getDeltaT(x,y)); }
             }
         }
     }
 
     /* simple solution of a differential equation, explicit type.
      * for z it is outside temperature from the top
-     * and burner (temperatureMap0) from the bottom */
+     * and burner (temperatureMapL0) from the bottom */
     for (int x = xMin; x < xMax; ++x){
         for (int y = 1; y < temperatureMapSizeY-1; ++y){
             temperatureMapL3[x][y] = temperatureMapL2[x][y] + alpha*timeStep * (
                         (temperatureMapL2[x+1][y] - 2*temperatureMapL2[x][y] + temperatureMapL2[x-1][y])/xStep/xStep +   // x
                         (temperatureMapL2[x][y+1] - 2*temperatureMapL2[x][y] + temperatureMapL2[x][y-1])/yStep/yStep +   // y
-                        (outsideTemperature - 2*temperatureMapL2[x][y] + temperatureMapL0[x][y])/zStep/zStep );          // z
+                        (qMin(outsideTemperature, temperatureMapL2[x][y]*0.7) - temperatureMapL2[x][y] + temperatureMapL0[x][y])/zStep/zStep );  // z
         }
     }
 }
@@ -493,8 +520,17 @@ void MainWindow::on_actionNew_triggered()
     using namespace std::chrono_literals;
 
     ui->drawArea->stopSimulation();
-    sleep_for(1000ms);
     ui->drawArea->clearImage();
+}
+
+void MainWindow::on_actionExit_triggered()
+{
+    using namespace std::this_thread;
+    using namespace std::chrono;
+    using namespace std::chrono_literals;
+
+    ui->drawArea->stopSimulation();
+    this->close();
 }
 
 
@@ -505,14 +541,11 @@ void MainWindow::on_PenSize_valueChanged(int value)
 }
 
 
-void MainWindow::on_Voltage_textEdited(const QString &arg1)
+/*void MainWindow::on_Voltage_textEdited(const QString &arg1)
 {
-    int voltage = arg1.toInt();
-    ui->drawArea->setVoltage(voltage);
-    if (voltage > 300){
-        ui->Voltage->setText(QString("300"));
-    }
-}
+    int watts = arg1.toInt();
+    ui->drawArea->setWatts(watts);
+}*/
 
 
 void MainWindow::on_startSimulation_released()
@@ -534,18 +567,6 @@ void MainWindow::on_stopSimulation_released()
 }*/
 
 
-void MainWindow::on_actionExit_triggered()
-{
-    using namespace std::this_thread;
-    using namespace std::chrono;
-    using namespace std::chrono_literals;
-
-    ui->drawArea->stopSimulation();
-    sleep_for(1000ms);
-    this->close();
-}
-
-
 void MainWindow::on_threadsNumber_valueChanged(int arg1)
 {
     ui->drawArea->setNumberOfThreads(arg1);
@@ -554,15 +575,17 @@ void MainWindow::on_threadsNumber_valueChanged(int arg1)
 
 void MainWindow::on_topSilver_released()
 {
-    ui->drawArea->setAlpha(165.6);
-    ui->labelTopMaterial->setText(QString("Stove top material: Silver"));
+    //ui->drawArea->setAlpha(165.6);
+    //ui->labelTopMaterial->setText(QString("Stove top material: Silver"));
+    ui->labelTopMaterial->setText(QString("Not yet implemeted"));
 }
 
 
 void MainWindow::on_topCopper_released()
 {
-    ui->drawArea->setAlpha(111.);
-    ui->labelTopMaterial->setText(QString("Stove top material: Copper"));
+    //ui->drawArea->setAlpha(111.);
+    //ui->labelTopMaterial->setText(QString("Stove top material: Copper"));
+    ui->labelTopMaterial->setText(QString("Not yet implemeted"));
 }
 
 
@@ -570,6 +593,7 @@ void MainWindow::on_topIron_released()
 {
     ui->drawArea->setAlpha(23.);
     ui->labelTopMaterial->setText(QString("Stove top material: Iron"));
+    //ui->labelTopMaterial->setText(QString("Not yet implemeted"));
 }
 
 
@@ -599,5 +623,13 @@ void MainWindow::on_HeaterOn_toggled(bool checked)
     if (checked) ui->drawArea->setBurner(true);
     else ui->drawArea->setBurner(false);
 
+}
+
+
+void MainWindow::on_powerDial_valueChanged(int value)
+{
+    int watts = value;
+    ui->drawArea->setWatts(1000*watts);
+    ui->labelPowerSupply->setText(QString("Power supply (in kWh) : ") + QString::number(watts));
 }
 

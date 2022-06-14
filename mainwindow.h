@@ -3,19 +3,33 @@
 
 #include <QMainWindow>
 
+// Qt main libs
+#include <QWidget>
+#include <QDebug>
+
+// Qt objects
+#include <QLabel>
+
+// Qt libs for painting
 #include <QPainter>
 #include <QPen>
-#include <QDebug>
 #include <QMouseEvent>
-#include <QWidget>
+
+// Qt data structures
 #include <QString>
-#include <QLabel>
-#include <QPen>
-#include <QTime>
 #include <QVector>
+#include <QHash>
+#include <QQueue>
+
+// Qt timer
+#include <QTime>
 #include <QTimer>
 #include <QElapsedTimer>
+
+// Qt multithreading
 #include <QtConcurrent>
+
+// C++ chrono libs
 #include <chrono>
 #include <thread>
 
@@ -38,7 +52,7 @@ public slots:
 private slots:
     void on_actionNew_triggered();
 
-    void on_Voltage_textEdited(const QString &arg1);
+    //void on_Voltage_textEdited(const QString &arg1);
 
     void on_PenSize_valueChanged(int value);
 
@@ -66,6 +80,8 @@ private slots:
 
     void on_HeaterOn_toggled(bool checked);
 
+    void on_powerDial_valueChanged(int value);
+
 private:
     Ui::MainWindow *ui;
 };
@@ -85,7 +101,7 @@ public:
 
     void setAlpha(double);
 
-    void setVoltage(int);
+    void setWatts(int);
 
     void setBurner(bool);
 
@@ -97,13 +113,11 @@ public:
 
     void pauseSimulation();
 
-    double getQ(int x, int y);
+    double getDeltaT(int x, int y);
 
     int penWidth() { return myPenWidth; }
 
-    int voltage() { return V; }
-
-    double getR() { return R; }
+    int getWatts() { return W; }
 
     template <typename T>
     T heaviside(T number){ return (number >= 0 ? number : 0 ); }
@@ -138,7 +152,7 @@ signals:
 
     void signalError(int errIndex);
 
-    void signalNoErrors();
+    void signalNoErrors(int errIndex);
 
 protected:
     void paintEvent(QPaintEvent *) override;
@@ -159,7 +173,7 @@ protected:
 
     void calcHeatingStepParallel(int numberOfThreads);
 
-    void calcHeatingStepPartial(int xMin, int xMax);
+    void calcHeatingStepPartial(QPromise<void> &promise, int xMin, int xMax);
 
 
 private:
@@ -167,17 +181,23 @@ private:
 
     void resizeImage(QImage *image, const QSize &newSize);
 
+    // status bools
     bool drawing = false;
     bool clearing = false;
     bool simulationRunning = false;
+    bool multithreadRunning = false;
     bool burnerOn = false;
-    int myPenWidth = 50;
-    QColor myPenColor = Qt::black;
+
+    int myPenWidth = 50; // starting defalut pen width
+    QColor myPenColor = Qt::black;       // and colour
     QImage image;
     QPoint lastPoint;
     QTimer *timer;
+
+    // bool map of where the burner was drawn
     QVector<QVector<bool>> burnerMap;
 
+    // setting temperature maps of the burner and stove top
     static const int temperatureMapSizeX = 202;  // 202*202 - Fixed size of simulation window/widget (drawArea)
     static const int temperatureMapSizeY = 202;  // 2 extra points in each dimention are used as boundary, so main calc area is 200*200
     double temperatureMapL0 [temperatureMapSizeX][temperatureMapSizeY];  // Burner map, under main stove top
@@ -185,29 +205,49 @@ private:
     double temperatureMapL2 [temperatureMapSizeX][temperatureMapSizeY];  // Previous state stove temp map
     double temperatureMapL3 [temperatureMapSizeX][temperatureMapSizeY];  // Current state stove temp map
 
+    // simulation parameters
     const int maxSimulationSteps = 1000000;     // For safety, execution will stop after this step is reached
     int currentSimulationStep = 0;
-    int numberOfThreads = 4;
+    int numberOfThreads = 1;
 
-    const int outsideTemperature = 20;
-    double alpha = 5.;                            // Thermal diffusivity in mm^2/s // alpha in literature
-    const int timerPeriod = 50;                 // How often to show the current simulation state, each timerPeriod the update will run, in ms //
+    // physical constants
+    const double outsideTemperature = 20.;
+
     const double density = 8.96e-3;             // Cu, density in g/mm^3 // rho in literature
-    const double spHeatCap = 0.385;            // Cu, specific heat capacity in J/g/deg C // c in literature
+    const double volHeatCapCu = 3.45e-3;       // Cu, specific heat capacity in J/mm^3/deg C // c in literature
     const double resistivity = 1.68e-5;       // Cu, resistivity in Ohm*mm // again rho in literature
     const double thermalResCoef = 3.86e-3;   // Cu, thermal sensitivity of resistivity, in a.u./deg C // again alpha in literature
+    const int maxHeaterTemp = 800;          // max temperature set for Cu heater, it will be not able to heat further
 
-    const double xStep = 0.26;               // 1 px = 0.26 mm // not sure if it is the same on every monitor
-    const double yStep = 0.26;              // 200 pixels simulation area -> 1000mm -> 1m
-    const double zStep = 5.;             // Burner Z size
+    // simulation constants
+    const double xStep = 0.26;           // 1 px = 0.26 mm // value for my monitor
+    const double yStep = 0.26;          // one pixel - one small block of burner
+    const double zStep = 2.;           // thickness of the stove top (glass or other)
+                                      // consider there is burner at 0-zStep and air at 0+zStep
+    const double burnerSizeZ = 1.;   // burner Z size
+                                    // these values are used for calculation of the size of the burner,
+                                   // stove top, as well as x, y and z simulation steps
+    const int timerPeriod = 100;  // How often to show the current simulation state, each timerPeriod the update will run, in ms
 
-    int V = 120;                       // Voltage, V // user will be able to change it
-    double R = 0;                     // R = rho * length / cut // will be set during burner drawing
-    double coef = 1;                 // V*V/xStep/yStep/zStep/density/spHeatCap // need for faster power calculation
-    double power = 0;               // will be calculated based on the burner drawn
-    int numberOfBurnerPixels = 0;  // number of pixels, coloured as a burner
+    // simulation variables
+    double alpha = 5.;               // Thermal diffusivity in mm^2/s, denepds on stove top material, which can be changed
+    double timeStep = 0.002;        // xStep*yStep / 4 / alpha, in seconds; updated when the widget is created and when alpha is changed
+    int W = 5000;                  // Total power supplied, Wh; user will be able to change it
+    double power = 0;             // power = f(W), shows the temperature increase of the burner based on W
+    int numberOfBurnerPixels = 0;// number of pixels coloured as a burner
 
-    double timeStep = 0.002;     // xStep*yStep / 4 / alpha // in seconds // updated when the widget is created
+
+
+    // currently unused parts
+    /* Dict of volumetric heat capacities for materials, J / mm^3 / K
+    const QHash<QString, int> volHeatCap{
+        {"Copper", 3.45e-3},
+        {"Silver", 2.44e-3},
+        {"Iron", 3.547e-3},
+        {"Quartz", 0.741e-3*2.65},
+        {"Brick", 0.840e-3*2},
+        {"Glass", 2.1e-3}
+    };*/
 };
 
 
