@@ -143,8 +143,8 @@ void DrawArea::createBurnerMap(){
         QVector<bool> row(this->height(), false);
         burnerMap.append(row);
     }
-    qDebug() << "Burner map created, width: "
-             << burnerMap.size() << ", height: " << burnerMap[0].size();
+    /*qDebug() << "Burner map created, width: "
+             << burnerMap.size() << ", height: " << burnerMap[0].size();*/
 }
 
 void DrawArea::createTemperatureMapLayers(){
@@ -253,9 +253,9 @@ void DrawArea::doSimulation()
 
         ++currentSimulationStep;
     }
-    qDebug() << "The whole simulation instance (" << static_cast<int>(timerPeriod / timeStep / 1000) << " steps) took "
+    /*qDebug() << "The whole simulation instance (" << static_cast<int>(timerPeriod / timeStep / 1000) << " steps) took "
              << simulationStepTimer.elapsed() << "milliseconds. " << "Central point: " << temperatureMapL3[100][100]
-             << " Heater centre: " << temperatureMapL0[100][100] << " Time step: " << timeStep << "Alpha: " << alpha << "\n";
+             << " Heater centre: " << temperatureMapL0[100][100] << " Time step: " << timeStep << "Alpha: " << alpha << "\n";*/
 }
 
 /*                                             PROTECTED METHODS                                */
